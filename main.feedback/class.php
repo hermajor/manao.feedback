@@ -18,6 +18,8 @@ class CFeedbackManao extends CBitrixComponent
 		if ($this->isUseCaptcha()) {//если нужна капча - подключаем файл
 			include_once($this->server->get("DOCUMENT_ROOT")."/bitrix/modules/main/classes/general/captcha.php");
 			$this->cpt = new CCaptcha();
+			
+			$this->arResult["capCode"] = $this->getCaptchaCode();
 		}
 		//$class_methods = get_class_methods('CBitrixComponent');
 		//echo '$class_methods <pre>'.print_r($class_methods, true).'</pre>';
@@ -88,7 +90,7 @@ class CFeedbackManao extends CBitrixComponent
 		}	
 	}
 	
-	public function isNoErrors()
+	public function isErrors()
 	{
 		return (empty($this->arErrors));
 	}
@@ -123,7 +125,7 @@ class CFeedbackManao extends CBitrixComponent
 	
 	public function formAutocomplete()
 	{
-		if (!$this->isNoErrors())
+		if (!$this->isErrors())
 		{
 			$this->arResult["MESSAGE"] = htmlspecialcharsbx($this->request->get("MESSAGE"));
 			$this->arResult["AUTHOR_NAME"] = htmlspecialcharsbx($this->request->get("user_name"));
@@ -163,7 +165,7 @@ class CFeedbackManao extends CBitrixComponent
 		if($this->isUseCaptcha())
 			$this->checkCaptcha();
 		
-		if ($this->isNoErrors())
+		if ($this->isErrors())
 		{
 			return true;
 		}
@@ -190,10 +192,7 @@ class CFeedbackManao extends CBitrixComponent
 
 		$this->formAutocomplete();
 
-		if($this->isUseCaptcha())
-			$this->arResult["capCode"] = $this->getCaptchaCode();
-
-		if (!$this->isNoErrors())
+		if (!$this->isErrors())
 			$this->arResult["ERROR_MESSAGE"] = $this->arErrors;
 	
 		$this->IncludeComponentTemplate();
