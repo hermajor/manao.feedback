@@ -4,14 +4,23 @@ class CFeedbackManao extends CBitrixComponent
 {
 	private $user = null;
 	private $application = null;
+	private $server = null;
+	private $arErrors = array();
 	//конструктор
-	public function localConstruct()
+	public function initConstruct()
 	{
 		global $USER;
-		global $APPLICATION;
 		$this->user = $USER;
-		$this->application = $APPLICATION;
-		//$this->application = Bitrix\Main\Application::getInstance();
+		$this->server = Bitrix\Main\Context::getCurrent()->getServer();//$_SERVER
+		$this->application = Bitrix\Main\Application::getInstance();
+		$this->setParams();//заполняем $arParams
+		$this->arResult["PARAMS_HASH"] = md5(serialize($this->arParams).$this->GetTemplateName());
+		if ($this->isUseCaptcha()) {//если нужна капча - подключаем файл
+			include_once($this->server->get("DOCUMENT_ROOT")."/bitrix/modules/main/classes/general/captcha.php");
+			$this->cpt = new CCaptcha();
+		}
+		//$class_methods = get_class_methods('CBitrixComponent');
+		//echo '$class_methods <pre>'.print_r($class_methods, true).'</pre>';
 	}
  
 	public function setParams()
@@ -24,73 +33,73 @@ class CFeedbackManao extends CBitrixComponent
 		if($this->arParams["EMAIL_TO"] == '')
 			$this->arParams["EMAIL_TO"] = COption::GetOptionString("main", "email_from");
 		$this->arParams["OK_TEXT"] = trim($this->arParams["OK_TEXT"]);
-		if($this->arParams["OK_TEXT"] == '')
+		if($this->arParams["OK_TEXT"] == '') {
 			$this->arParams["OK_TEXT"] = GetMessage("MF_OK_MESSAGE");
+		}
 	}
 	
 	public function isUseCaptcha()
 	{
-		$capthaStatus = ($this->arParams["USE_CAPTCHA"] != "N" && !$this->user->IsAuthorized()) ? true : false;
-		return $capthaStatus;
+		return ($this->arParams["USE_CAPTCHA"] != "N" && !$this->user->IsAuthorized());
 	}
 	
-	public function useCaptcha()
+	public function checkCaptcha()
 	{
-		include_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/classes/general/captcha.php");
-		$captcha_code = $_POST["captcha_sid"];
-		$captcha_word = $_POST["captcha_word"];
-		$cpt = new CCaptcha();
+		$captcha_code = $this->request->get("captcha_sid");
+		$captcha_word = $this->request->get("captcha_word");
 		$captchaPass = COption::GetOptionString("main", "captcha_password", "");
+
 		if (strlen($captcha_word) > 0 && strlen($captcha_code) > 0)
 		{
-			if (!$cpt->CheckCodeCrypt($captcha_word, $captcha_code, $captchaPass))
-				$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_CAPTCHA_WRONG");
+			if (!$this->cpt->CheckCodeCrypt($captcha_word, $captcha_code, $captchaPass))
+				$this->arErrors[] = GetMessage("MF_CAPTCHA_WRONG");
 		}
 		else
-			$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_CAPTHCA_EMPTY");
+			$this->arErrors[] = GetMessage("MF_CAPTHCA_EMPTY");
 	}
 	
 	public function getCaptchaCode()
     {
-		//$this->arResult["capCode"] =  htmlspecialcharsbx($this->application->CaptchaGetCode());
-		return htmlspecialcharsbx($this->application->CaptchaGetCode());
+        $this->cpt->SetCode();
+		
+        return htmlspecialcharsbx($this->cpt->GetSID());
 	}
 	
 	public function isSubmit()
 	{
-		return $_SERVER["REQUEST_METHOD"] == "POST" && $_POST["submit"] <> '' && (!isset($_POST["PARAMS_HASH"]) || $this->arResult["PARAMS_HASH"] === $_POST["PARAMS_HASH"]);
+		return $this->server->get("REQUEST_METHOD") == "POST" && $this->request->get("submit") <> '' && ((!$this->request->get("PARAMS_HASH")) || $this->arResult["PARAMS_HASH"] === $this->request->get("PARAMS_HASH"));
 	}
 	
 	public function isEmailValid()
 	{
-		return strlen($_POST["user_email"]) > 1 && !check_email($_POST["user_email"]);
+		return strlen($this->request->get("user_email")) > 1 && !check_email($this->request->get("user_email"));
 	}
 	
 	public function checkRequiredFields()
 	{
 		if(empty($this->arParams["REQUIRED_FIELDS"]) || !in_array("NONE", $this->arParams["REQUIRED_FIELDS"]))
 		{
-			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("NAME", $this->arParams["REQUIRED_FIELDS"])) && strlen($_POST["user_name"]) <= 1)
-				$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_REQ_NAME");		
-			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("EMAIL", $this->arParams["REQUIRED_FIELDS"])) && strlen($_POST["user_email"]) <= 1)
-				$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_REQ_EMAIL");
-			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("MESSAGE", $this->arParams["REQUIRED_FIELDS"])) && strlen($_POST["MESSAGE"]) <= 3)
-				$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_REQ_MESSAGE");
+			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("NAME", $this->arParams["REQUIRED_FIELDS"])) && strlen($this->request->get("user_name")) <= 1)
+				$this->arErrors[] = GetMessage("MF_REQ_NAME");			
+			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("EMAIL", $this->arParams["REQUIRED_FIELDS"])) && strlen($this->request->get("user_email")) <= 1)
+				$this->arErrors[] = GetMessage("MF_REQ_EMAIL");
+			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("MESSAGE", $this->arParams["REQUIRED_FIELDS"])) && strlen($this->request->get("MESSAGE")) <= 3)
+				$this->arErrors[] = GetMessage("MF_REQ_MESSAGE");
 		}	
 	}
 	
 	public function isNoErrors()
 	{
-		return (empty($this->arResult["ERROR_MESSAGE"]));
+		return (empty($this->arErrors));
 	}
 	
 	public function sendMessage()
 	{
 		$arFields = Array(
-			"AUTHOR" => $_POST["user_name"],
-			"AUTHOR_EMAIL" => $_POST["user_email"],
+			"AUTHOR" => $this->request->get("user_name"),
+			"AUTHOR_EMAIL" => $this->request->get("user_email"),
 			"EMAIL_TO" => $this->arParams["EMAIL_TO"],
-			"TEXT" => $_POST["MESSAGE"],
+			"TEXT" => $this->request->get("MESSAGE"),
 		);
 		if(!empty($this->arParams["EVENT_MESSAGE_ID"]))
 		{
@@ -100,54 +109,27 @@ class CFeedbackManao extends CBitrixComponent
 		}
 		else
 			CEvent::Send($this->arParams["EVENT_NAME"], SITE_ID, $arFields);
-		$_SESSION["MF_NAME"] = htmlspecialcharsbx($_POST["user_name"]);
-		$_SESSION["MF_EMAIL"] = htmlspecialcharsbx($_POST["user_email"]);
+		$_SESSION["MF_NAME"] = htmlspecialcharsbx($this->request->get("user_name"));
+		$_SESSION["MF_EMAIL"] = htmlspecialcharsbx($this->request->get("user_email"));
+	}
+	public function redirect()
+	{
+		$uriString = $this->application->getContext()->getRequest()->getRequestUri();
+		$uri = new Bitrix\Main\Web\Uri($uriString);
+		$uri->deleteParams(array("success"));
+		$uri->addParams(array("success" => $this->arResult["PARAMS_HASH"]));
+		LocalRedirect($uri->getUri());
 	}
 	
-	public function executeComponent()
-    {
-		$this->localConstruct();//конструктор 
-		$this->setParams();//заполняем $arParams
-//echo '<pre>'.print_r($this->user, true).'</pre>';		
-		$this->arResult["PARAMS_HASH"] = md5(serialize($this->arParams).$this->GetTemplateName());
-
-		if($this->isSubmit())
+	public function formAutocomplete()
+	{
+		if (!$this->isNoErrors())
 		{
-			$this->arResult["ERROR_MESSAGE"] = array();
-			if(check_bitrix_sessid())
-			{
-echo 'arParams <pre>'.print_r($this->arParams, true).'</pre>';
-				$this->checkRequiredFields();
-				
-				if($this->isEmailValid())
-					$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_EMAIL_NOT_VALID");
-				//капча 
-				if($this->isUseCaptcha())
-				{
-					$this->useCaptcha();
-				}
-				//всё заебись, ошибок нет
-				if($this->isNoErrors())
-				{
-					$this->sendMessage();
-					//редиректит на текущую страницу +
-					LocalRedirect($this->application->GetCurPageParam("success=".$this->arResult["PARAMS_HASH"], Array("success")));
-				}
-				
-				$this->arResult["MESSAGE"] = htmlspecialcharsbx($_POST["MESSAGE"]);
-				$this->arResult["AUTHOR_NAME"] = htmlspecialcharsbx($_POST["user_name"]);
-				$this->arResult["AUTHOR_EMAIL"] = htmlspecialcharsbx($_POST["user_email"]);
-			}
-			else
-				//ваша сессия истекла
-				$this->arResult["ERROR_MESSAGE"][] = GetMessage("MF_SESS_EXP");
+			$this->arResult["MESSAGE"] = htmlspecialcharsbx($this->request->get("MESSAGE"));
+			$this->arResult["AUTHOR_NAME"] = htmlspecialcharsbx($this->request->get("user_name"));
+			$this->arResult["AUTHOR_EMAIL"] = htmlspecialcharsbx($this->request->get("user_email"));
 		}
-		elseif($_REQUEST["success"] == $this->arResult["PARAMS_HASH"])
-		{
-			$this->arResult["OK_MESSAGE"] = $this->arParams["OK_TEXT"];
-		}
-
-		if($this->isNoErrors())
+		else
 		{
 			if($this->user->IsAuthorized())
 			{
@@ -162,19 +144,59 @@ echo 'arParams <pre>'.print_r($this->arParams, true).'</pre>';
 					$this->arResult["AUTHOR_EMAIL"] = htmlspecialcharsbx($_SESSION["MF_EMAIL"]);
 			}
 		}
+	}
+	
+	public function validate()
+	{
+		$this->arErrors = array();
+		
+		if(!check_bitrix_sessid())
+		{
+			$this->arErrors[] = GetMessage("MF_SESS_EXP");
+			return false;
+		}
+		$this->checkRequiredFields();
+		
+		if($this->isEmailValid())
+			$this->arErrors[] = GetMessage("MF_EMAIL_NOT_VALID");
+		
+		if($this->isUseCaptcha())
+			$this->checkCaptcha();
+		
+		if ($this->isNoErrors())
+		{
+			return true;
+		}
+		else
+		{
+			$this->formAutocomplete();
+			return false;
+		}
+	}
+
+	public function executeComponent()
+    {
+		$this->initConstruct();//конструктор
+
+		if($this->isSubmit() && $this->validate())
+		{
+			$this->sendMessage();
+			$this->redirect();
+		}
+		if(!$this->isSubmit() && $this->request->get("success") == $this->arResult["PARAMS_HASH"])
+		{
+			$this->arResult["OK_MESSAGE"] = $this->arParams["OK_TEXT"];
+		}
+
+		$this->formAutocomplete();
 
 		if($this->isUseCaptcha())
 			$this->arResult["capCode"] = $this->getCaptchaCode();
 
-//var_dump($this->isUseCaptcha());
-//var_dump($this->arParams["USE_CAPTCHA"] == "Y");
+		if (!$this->isNoErrors())
+			$this->arResult["ERROR_MESSAGE"] = $this->arErrors;
+	
 		$this->IncludeComponentTemplate();
-echo 'arResult <pre>'.print_r($this->arResult, true).'</pre>';
-//echo 'arParams <pre>'.print_r($this->arParams, true).'</pre>';
-/*
-echo '$_POST <pre>'.print_r($_POST, true).'</pre>';
-echo '$_REQUEST <pre>'.print_r($_REQUEST, true).'</pre>';
-*/
     }
 }
 ?>

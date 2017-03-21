@@ -23,7 +23,7 @@ if(strlen($arResult["OK_MESSAGE"]) > 0)
 ?>
 
 <form action="<?=POST_FORM_ACTION_URI?>" method="POST">
-<?=bitrix_sessid_post()?>
+<?=bitrix_sessid_post()//Возвращает строку вида <input type="hidden" name="$varname" id="$varname" value="идентификатор сесии" />?>
 	<div class="mf-name">
 		<div class="mf-text">
 			<?=GetMessage("MFT_NAME")?><?if(empty($arParams["REQUIRED_FIELDS"]) || in_array("NAME", $arParams["REQUIRED_FIELDS"])):?><span class="mf-req">*</span><?endif?>
@@ -57,3 +57,16 @@ if(strlen($arResult["OK_MESSAGE"]) > 0)
 	<input type="submit" name="submit" value="<?=GetMessage("MFT_SUBMIT")?>">
 </form>
 </div>
+<script>
+  //<button onclick="loadPhones()" id="button">Загрузить phones.json!</button>
+	/*var isName = prompt("Как Вас зовут?");
+	if (isName) {
+		var isTeaWanted = confirm("Вы хотите чаю?");
+		if (isTeaWanted) {
+			alert("Держите чашечку, " + isName.toUpperCase());
+		} else {
+			write("Ну нет так нет. Проваливай, " + isName.toUpperCase());
+			//alert("Ну нет так нет. Проваливай, " + isName.toUpperCase());
+		}
+	}*/
+</script>
