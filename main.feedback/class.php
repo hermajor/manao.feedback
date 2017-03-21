@@ -7,7 +7,7 @@ class CFeedbackManao extends CBitrixComponent
 	private $server = null;
 	private $arErrors = array();
 	//конструктор
-	public function initConstruct()
+	public function init()
 	{
 		global $USER;
 		$this->user = $USER;
@@ -178,7 +178,7 @@ class CFeedbackManao extends CBitrixComponent
 
 	public function executeComponent()
     {
-		$this->initConstruct();//конструктор
+		$this->init();//конструктор
 
 		if($this->isSubmit() && $this->validate())
 		{
@@ -192,7 +192,7 @@ class CFeedbackManao extends CBitrixComponent
 
 		$this->formAutocomplete();
 
-		if (!$this->isErrors())
+		if ($this->arErrors)
 			$this->arResult["ERROR_MESSAGE"] = $this->arErrors;
 	
 		$this->IncludeComponentTemplate();
