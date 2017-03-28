@@ -50,7 +50,13 @@ $arComponentParameters = array(
 			"COLS"=>25, 
 			"PARENT" => "BASE",
 		),
-
+		"USE_AJAX" => array(
+			"NAME" => "Использовать Ajax",
+			"TYPE" => "CHECKBOX",
+			"MULTIPLE" => "N",
+			"DEFAULT" => "N",
+			"PARENT" => "BASE",
+		),
 	)
 );
 

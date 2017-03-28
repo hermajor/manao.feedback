@@ -6,6 +6,7 @@ class CFeedbackManao extends CBitrixComponent
 	private $application = null;
 	private $server = null;
 	private $arErrors = array();
+	private $isAjax = false;
 	//конструктор
 	public function init()
 	{
@@ -21,8 +22,11 @@ class CFeedbackManao extends CBitrixComponent
 			
 			$this->arResult["capCode"] = $this->getCaptchaCode();
 		}
+		$this->isAjax = ($this->server->get("HTTP_X_REQUESTED_WITH") == 'XMLHttpRequest') && ($this->request->get("ajax") == 'Y');
 		//$class_methods = get_class_methods('CBitrixComponent');
 		//echo '$class_methods <pre>'.print_r($class_methods, true).'</pre>';
+		//echo '<pre>'.print_r($this->server, true).'</pre>';
+		$this->arResult["CLASS_PATH"] = $this->GetPath();
 	}
  
 	public function setParams()
@@ -54,10 +58,11 @@ class CFeedbackManao extends CBitrixComponent
 		if (strlen($captcha_word) > 0 && strlen($captcha_code) > 0)
 		{
 			if (!$this->cpt->CheckCodeCrypt($captcha_word, $captcha_code, $captchaPass))
-				$this->arErrors[] = GetMessage("MF_CAPTCHA_WRONG");
+				//$this->arErrors["captcha_sid"] = GetMessage("MF_CAPTCHA_WRONG");
+				$this->arErrors["captcha_word"] = GetMessage("MF_CAPTCHA_WRONG");
 		}
 		else
-			$this->arErrors[] = GetMessage("MF_CAPTHCA_EMPTY");
+			$this->arErrors["captcha_word"] = GetMessage("MF_CAPTHCA_EMPTY");
 	}
 	
 	public function getCaptchaCode()
@@ -82,11 +87,11 @@ class CFeedbackManao extends CBitrixComponent
 		if(empty($this->arParams["REQUIRED_FIELDS"]) || !in_array("NONE", $this->arParams["REQUIRED_FIELDS"]))
 		{
 			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("NAME", $this->arParams["REQUIRED_FIELDS"])) && strlen($this->request->get("user_name")) <= 1)
-				$this->arErrors[] = GetMessage("MF_REQ_NAME");			
+				$this->arErrors["user_name"] = GetMessage("MF_REQ_NAME");			
 			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("EMAIL", $this->arParams["REQUIRED_FIELDS"])) && strlen($this->request->get("user_email")) <= 1)
-				$this->arErrors[] = GetMessage("MF_REQ_EMAIL");
+				$this->arErrors["user_email"] = GetMessage("MF_REQ_EMAIL");
 			if((empty($this->arParams["REQUIRED_FIELDS"]) || in_array("MESSAGE", $this->arParams["REQUIRED_FIELDS"])) && strlen($this->request->get("MESSAGE")) <= 3)
-				$this->arErrors[] = GetMessage("MF_REQ_MESSAGE");
+				$this->arErrors["MESSAGE"] = GetMessage("MF_REQ_MESSAGE");
 		}	
 	}
 	
@@ -154,13 +159,15 @@ class CFeedbackManao extends CBitrixComponent
 		
 		if(!check_bitrix_sessid())
 		{
-			$this->arErrors[] = GetMessage("MF_SESS_EXP");
+			$this->arErrors["SESS_EXP"] = GetMessage("MF_SESS_EXP");
 			return false;
 		}
 		$this->checkRequiredFields();
 		
-		if($this->isEmailValid())
-			$this->arErrors[] = GetMessage("MF_EMAIL_NOT_VALID");
+		if($this->isEmailValid()) {
+			//$this->arErrors["EMAIL_NOT_VALID"] = GetMessage("MF_EMAIL_NOT_VALID");
+			$this->arErrors["user_email"] = GetMessage("MF_EMAIL_NOT_VALID");
+		}
 		
 		if($this->isUseCaptcha())
 			$this->checkCaptcha();
@@ -182,8 +189,15 @@ class CFeedbackManao extends CBitrixComponent
 
 		if($this->isSubmit() && $this->validate())
 		{
-			$this->sendMessage();
-			$this->redirect();
+			if ($this->isAjax) {
+				$this->arResult["OK_MESSAGE"] = $this->arParams["OK_TEXT"];
+				$this->sendMessage();
+			}
+			
+			if (!$this->isAjax) {
+				$this->sendMessage();
+				$this->redirect();
+			}
 		}
 		if(!$this->isSubmit() && $this->request->get("success") == $this->arResult["PARAMS_HASH"])
 		{
@@ -194,8 +208,23 @@ class CFeedbackManao extends CBitrixComponent
 
 		if ($this->arErrors)
 			$this->arResult["ERROR_MESSAGE"] = $this->arErrors;
-	
-		$this->IncludeComponentTemplate();
+		
+		if (!$this->isAjax)
+			$this->IncludeComponentTemplate();
+		
+		if ($this->isAjax) {
+			$this->arResult["AJAX"] = array(
+				"OK_MESSAGE" => $this->arParams["OK_TEXT"],
+			);
+			if ($this->isUseCaptcha()) {
+				$this->arResult["AJAX"]["capCode"] = $this->arResult["capCode"];
+			}
+			if($this->arErrors){
+				$this->arResult["AJAX"]["ERRORS"] = $this->arErrors;
+			}
+			//echo '<pre>'.print_r($this->arErrors, true).'</pre>';
+			//echo 'arResult <pre>'.print_r($this->arResult, true).'</pre>';
+		}
     }
 }
 ?>
